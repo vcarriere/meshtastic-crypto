@@ -192,15 +192,12 @@ private:
 
 /** @cond aes_esp_rename */
 
-// The esp32 SDK keeps moving where aes.h is located, so we have to
-// declare the API functions ourselves and make the context opaque.
-//
-// About the only thing the various SDK versions agree on is that the
-// first byte is the length of the key in bytes.
-//
-// Some versions of esp-idf have a 33 byte AES context, and others 34.
-// Allocate up to 40 to make space for future expansion.
-#define CRYPTO_ESP32_CONTEXT_SIZE 40
+// Include the SDK before renaming our classes to avoid its AES enum names.
+#if __has_include(<aes/esp_aes.h>)
+#include <aes/esp_aes.h>
+#else
+#include <hwcrypto/aes.h>
+#endif
 
 // Some of the esp-idf system headers define enumerations for AES128,
 // AES192, and AES256 to identify the hardware-accelerated algorithms.
@@ -234,7 +231,8 @@ protected:
     AESCommon(uint8_t keySize);
 
 private:
-    uint8_t ctx[CRYPTO_ESP32_CONTEXT_SIZE];
+    esp_aes_context ctx;
+    uint8_t configuredKeySize;
 };
 
 class AES128 : public AESCommon

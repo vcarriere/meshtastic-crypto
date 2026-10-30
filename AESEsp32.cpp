@@ -28,24 +28,15 @@
 
 #if defined(CRYPTO_AES_ESP32)
 
-// Declare the functions in the esp-idf SDK that we need.
-extern "C" {
-int esp_aes_setkey(unsigned char *ctx, const unsigned char *key,
-                   unsigned int keybits);
-int esp_aes_crypt_ecb(unsigned char *ctx, int mode,
-                      const unsigned char *input,
-                      unsigned char *output);
-};
-
-AESCommon::AESCommon(uint8_t keySize)
+AESCommon::AESCommon(uint8_t keySize) : configuredKeySize(keySize)
 {
-    memset(ctx, 0, sizeof(ctx));
-    ctx[0] = keySize;
+    esp_aes_init(&ctx);
 }
 
 AESCommon::~AESCommon()
 {
-    clean(ctx, sizeof(ctx));
+    esp_aes_free(&ctx);
+    clean(&ctx, sizeof(ctx));
 }
 
 size_t AESCommon::blockSize() const
@@ -55,21 +46,19 @@ size_t AESCommon::blockSize() const
 
 size_t AESCommon::keySize() const
 {
-    return ctx[0];
+    return configuredKeySize;
 }
 
 bool AESCommon::setKey(const uint8_t *key, size_t len)
 {
-    if (len == ctx[0]) {
-        esp_aes_setkey(ctx, key, len * 8);
-        return true;
-    }
-    return false;
+    if (!key || len != configuredKeySize)
+        return false;
+    return esp_aes_setkey(&ctx, key, len * 8) == 0;
 }
 
 void AESCommon::encryptBlock(uint8_t *output, const uint8_t *input)
 {
-    esp_aes_crypt_ecb(ctx, 1, input, output);
+    esp_aes_crypt_ecb(&ctx, ESP_AES_ENCRYPT, input, output);
 }
 
 void AESCommon::decryptBlock(uint8_t *output, const uint8_t *input)
@@ -79,15 +68,15 @@ void AESCommon::decryptBlock(uint8_t *output, const uint8_t *input)
     (void)input;
     memset(output, 0, 16);
 #else
-    esp_aes_crypt_ecb(ctx, 0, input, output);
+    esp_aes_crypt_ecb(&ctx, ESP_AES_DECRYPT, input, output);
 #endif
 }
 
 void AESCommon::clear()
 {
-    uint8_t keySize = ctx[0];
-    clean(ctx, sizeof(ctx));
-    ctx[0] = keySize;
+    esp_aes_free(&ctx);
+    clean(&ctx, sizeof(ctx));
+    esp_aes_init(&ctx);
 }
 
 AES128::~AES128()
